@@ -20,6 +20,7 @@ Route::post('/phone', [ApiController::class, 'sendOtp']);
 Route::post('/verify-otp', [ApiController::class, 'verifyOtp']);
 Route::post('/resend-otp', [ApiController::class, 'resendOtp']);
 Route::post('/user-register', [ApiController::class, 'register']);
+Route::post('/upload/image', [ApiController::class, 'uploadImage']);
 
 
 Route::post('/get-player-list', [ApiController::class, 'getPlayerList']);
@@ -33,6 +34,8 @@ Route::post('/team/remove-player', [ApiController::class, 'removePlayer']);
 //tournament
 Route::post('/tournament/create', [ApiController::class, 'createTournament']);
 Route::post('/tournament/details', [ApiController::class, 'getTournamentDetails']);
+Route::post('/tournament/add-teams', [ApiController::class, 'addTournamentTeams']);
+Route::post('/tournament/add-players', [ApiController::class, 'addTournamentPlayers']);
 
 
 

@@ -22,9 +22,12 @@ use App\Http\Controllers\FrontendController;
 */
 
 // Route::get('/', [AdminController::class, 'login']);
+Route::get('/home', function () {
+    return view('banner'); // this loads banner.blade.php
+});
 
 
-Route::get('/', [FrontendController::class, 'privacyPolicy'])->name('home');
+// Route::get('/', [FrontendController::class, 'privacyPolicy'])->name('home');
 // Route::get('/{slug}', [FrontendController::class, 'show'])->name('pages.show'); // Dynamic page route
 
 Route::get('/about-us', [FrontendController::class, 'about'])->name('about');
