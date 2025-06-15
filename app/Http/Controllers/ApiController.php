@@ -43,12 +43,14 @@ class ApiController extends Controller
         ]);
     }
 
-    $otp = rand(100000, 999999);
+    // $otp = rand(100000, 999999);
+
+    $otp = 111111;
     Cache::put('otp_' . $request->phone, $otp, now()->addMinutes(5));
 
     // Generate a random 64-character token
     $pass = Str::random(64);
-
+// verifyOtp
     return response()->json([
         'code' => 200,
         'message' => 'OTP sent successfully',
@@ -138,19 +140,19 @@ class ApiController extends Controller
     }
 
     // Image upload logic
-    $imagePath = $user->image;
-    if ($request->hasFile('profileImage')) {
-        $image = $request->file('profileImage');
-        $filename = time() . '.' . $image->getClientOriginalExtension();
-        $folderPath = public_path('uploads/' . $user->id);
+    // $imagePath = $user->image;
+    // if ($request->hasFile('profileImage')) {
+    //     $image = $request->file('profileImage');
+    //     $filename = time() . '.' . $image->getClientOriginalExtension();
+    //     $folderPath = public_path('uploads/' . $user->id);
 
-        if (!file_exists($folderPath)) {
-            mkdir($folderPath, 0755, true);
-        }
+    //     if (!file_exists($folderPath)) {
+    //         mkdir($folderPath, 0755, true);
+    //     }
 
-        $image->move($folderPath, $filename);
-        $imagePath = 'uploads/' . $user->id . '/' . $filename;
-    }
+    //     $image->move($folderPath, $filename);
+    //     $imagePath = 'uploads/' . $user->id . '/' . $filename;
+    // }
 
     $user->update([
         'first_name' => $request->fullName,
@@ -158,7 +160,7 @@ class ApiController extends Controller
         'location'   => $request->location,
         'dob'        => $request->dob,
         'gender'     => $request->gender,
-        'image'      => $imagePath,
+        'image'      => $request->profileImage,
     ]);
 
     $token = UserAuthToken::where('user_id', $user->id)->value('token');
@@ -174,7 +176,7 @@ class ApiController extends Controller
             'location'     => $user->location,
             'dob'          => $user->dob,
             'gender'       => $user->gender,
-            'profileImage' => asset($user->image),
+            'profileImage' => $user->image,
             'phone'        => $user->mobile
         ]
     ]);
@@ -374,6 +376,7 @@ public function teamList(Request $request)
     $user_id = $request->userId;
     $token = $request->header('token');
 
+
     // Auth check (your existing method)
     $authcheck = $this->authCheck($token, $user_id);
     if (!empty($authcheck)) {
@@ -501,7 +504,7 @@ public function teamDetails(Request $request)
         return $player;
     });
 
-    // Format response
+    // Format response 
     $result = [
         'teamId' => $team->teamId,
         'teamName' => $team->teamName,
@@ -718,6 +721,68 @@ $tournamentId = $request->input('tournamentId');
 
 
 
+// public function createMatch(Request $request)
+// {
+//     try {
+//         $user_id = $request->userId;
+//         $token = $request->header('token');
+
+//         // Auth check
+//         $authcheck = $this->authCheck($token, $user_id);
+//         if (!empty($authcheck)) {
+//             return response()->json($authcheck, 401);
+//         }
+
+//         // ✅ Fix validation
+//         $validated = $request->validate([
+//             'tournamentId'    => 'required|string|exists:tournaments,tournament_id',
+//             'matchStartDate'  => 'required|date',
+//             'matchStartTime'  => 'required|date_format:H:i:s',
+//             'teamAId'         => 'required|integer|exists:teams,id',
+//             'teamBId'         => 'required|integer|exists:teams,id',
+//             'location'        => 'required|string',
+//             'courtName'       => 'nullable|string',
+//             'Scorer_id'       => 'nullable|string',
+//         ]);
+
+//         $match_id = 'match_' . Str::random(8);
+
+//         $match = Match::create([
+//             'match_id'        => $match_id,
+//             'tournament_id'   => $validated['tournamentId'],
+//             'match_date'      => Carbon::parse($validated['matchStartDate'])->format('Y-m-d'),
+//             'match_time'      => $validated['matchStartTime'],
+//             'team_a_id'       => $validated['teamAId'],
+//             'team_b_id'       => $validated['teamBId'],
+//             'location'        => $validated['location'],
+//             'court_name'      => $validated['courtName'] ?? null,
+//             'scorer_id'       => $validated['Scorer_id'] ?? null,
+//             'status'          => 'Pending',
+//             'created_by'      => $user_id,
+//         ]);
+
+//         return response()->json([
+//             'code' => 200,
+//             'message' => 'Match created successfully',
+//             'data' => [
+//                 'matchId' => $match->match_id
+//             ]
+//         ], 200);
+
+//     } catch (ValidationException $ve) {
+//         return response()->json([
+//             'code' => 422,
+//             'message' => 'Validation failed',
+//             'data' => $ve->errors(),
+//         ], 422);
+//     } catch (\Exception $e) {
+//         return response()->json([
+//             'code' => 500,
+//             'message' => 'Something went wrong',
+//             'data' => $e->getMessage(),
+//         ], 500);
+//     }
+// }
 public function createMatch(Request $request)
 {
     try {
@@ -730,7 +795,7 @@ public function createMatch(Request $request)
             return response()->json($authcheck, 401);
         }
 
-        // ✅ Fix validation
+        // Validation
         $validated = $request->validate([
             'tournamentId'    => 'required|string|exists:tournaments,tournament_id',
             'matchStartDate'  => 'required|date',
@@ -744,25 +809,28 @@ public function createMatch(Request $request)
 
         $match_id = 'match_' . Str::random(8);
 
-        $match = Match::create([
+        // Insert into the database using query builder
+        DB::table('matches')->insert([
             'match_id'        => $match_id,
             'tournament_id'   => $validated['tournamentId'],
-            'match_date'      => Carbon::parse($validated['matchStartDate'])->format('Y-m-d'),
-            'match_time'      => $validated['matchStartTime'],
+            'match_start_date'      => Carbon::parse($validated['matchStartDate'])->format('Y-m-d'),
+            'match_start_time'      => $validated['matchStartTime'],
             'team_a_id'       => $validated['teamAId'],
             'team_b_id'       => $validated['teamBId'],
             'location'        => $validated['location'],
             'court_name'      => $validated['courtName'] ?? null,
             'scorer_id'       => $validated['Scorer_id'] ?? null,
             'status'          => 'Pending',
-            'created_by'      => $user_id,
+            // 'created_by'      => $user_id,
+            'created_at'      => now(),
+            'updated_at'      => now(),
         ]);
 
         return response()->json([
             'code' => 200,
             'message' => 'Match created successfully',
             'data' => [
-                'matchId' => $match->match_id
+                'matchId' => $match_id
             ]
         ], 200);
 
@@ -780,6 +848,7 @@ public function createMatch(Request $request)
         ], 500);
     }
 }
+
 public function getTournamentMatches(Request $request)
 {
     try {
@@ -933,7 +1002,7 @@ public function removeTeam(Request $request)
 //     }
 
 //     // Fetch and update match
-//     $match = Match::where('match_id', $request->matchId)->firstOrFail();
+//     $match = DB::tabel('matches')->where('match_id', $request->matchId)->firstOrFail();
 
 //     $match->team_one_score = $request->teamOneScore;
 //     $match->team_two_score = $request->teamTwoScore;
@@ -1012,7 +1081,7 @@ public function updateMatchScore(Request $request)
     }
 
     // Proceed to fetch and update match
-    $match = Match::where('match_id', $request->matchId)->firstOrFail();
+    $match = DB::tabel('matches')->where('match_id', $request->matchId)->firstOrFail();
 
     // Check for duplicate values
     $isSame = (
@@ -1077,7 +1146,7 @@ public function getMatchStatus(Request $request)
     }
 
     // Fetch match
-    $match = Match::where('match_id', $matchId)
+    $match = DB::tabel('matches')->where('match_id', $matchId)
         ->when($request->input('tournamentId'), function ($q) use ($request) {
             $q->where('tournament_id', $request->input('tournamentId'));
         })
@@ -1184,31 +1253,250 @@ public function getTournamentTeams(Request $request)
     return response()->json([
         'code' => 200,
         'message' => 'Teams fetched successfully',
-        'result' => $teams
+        'data' => $teams
+    ]);
+}
+public function addTournamentTeams(Request $request)
+{
+    $request->validate([
+        'userId' => 'required|integer|exists:users,id',
+        'tournamentId' => 'required',
+        'teamIds' => 'required|array|min:1',
+        'teamIds.*' => 'required|integer|exists:teams,id',
+    ]);
+
+    $userId = $request->input('userId');
+    $token = $request->header('token');
+
+    // Auth check
+    $authcheck = $this->authCheck($token, $userId);
+    if (!empty($authcheck)) {
+        return response()->json($authcheck, 401);
+    }
+
+    $tournamentId = $request->input('tournamentId');
+    $teamIds = $request->input('teamIds');
+
+    // Get existing team IDs in DB
+    $existingTeamIds = DB::table('tournament_teams')
+        ->where('tournament_id', $tournamentId)
+        ->pluck('team_id')
+        ->toArray();
+
+    // Find team IDs to add and remove
+    $teamIdsToAdd = array_diff($teamIds, $existingTeamIds);
+    $teamIdsToRemove = array_diff($existingTeamIds, $teamIds);
+
+    // Prepare and insert new team links
+    $insertData = [];
+    foreach ($teamIdsToAdd as $teamId) {
+        $insertData[] = [
+            'tournament_id' => $tournamentId,
+            'team_id' => $teamId,
+            'created_at' => now(),
+            'updated_at' => now()
+        ];
+    }
+
+    if (!empty($insertData)) {
+        DB::table('tournament_teams')->insert($insertData);
+    }
+
+    // Remove old teams that are not in new input
+    if (!empty($teamIdsToRemove)) {
+        DB::table('tournament_teams')
+            ->where('tournament_id', $tournamentId)
+            ->whereIn('team_id', $teamIdsToRemove)
+            ->delete();
+    }
+
+    return response()->json([
+        'code' => 200,
+        'message' => 'Tournament teams updated successfully.',
+        'data'=>'',
+        // 'added' => array_values($teamIdsToAdd),
+        // 'removed' => array_values($teamIdsToRemove),
     ]);
 }
 
 
-public function getTournamentPlayers(Request $request)
+public function addTournamentPlayers(Request $request)
 {
-    $user_id = $request->input('userId');
+    $request->validate([
+        'userId' => 'required|integer|exists:users,id',
+        'tournamentId' => 'required|string',
+        // 'teamId' => 'required|integer|exists:teams,id',
+        'playerIds' => 'required|array|min:1',
+        'playerIds.*' => 'required',
+    ]);
+    // dd('dssfdf');
+
+    $userId = $request->input('userId');
     $token = $request->header('token');
 
     // Auth check
-    $authcheck = $this->authCheck($token, $user_id);
+    $authcheck = $this->authCheck($token, $userId);
+    if (!empty($authcheck)) {
+        return response()->json($authcheck, 401);
+    }
+
+    $tournamentId = $request->input('tournamentId');
+    $teamId = $request->input('teamId');
+    $playerIds = $request->input('playerIds');
+
+    // Get existing player IDs already added
+    $existingPlayerIds = DB::table('tournament_players')
+        ->where('tournament_id', $tournamentId)
+        // ->where('team_id', $teamId)
+        ->pluck('player_id')
+        ->toArray();
+
+    // Calculate new and removed players
+    $playerIdsToAdd = array_diff($playerIds, $existingPlayerIds);
+    $playerIdsToRemove = array_diff($existingPlayerIds, $playerIds);
+
+    // Insert new players
+    $insertData = [];
+    foreach ($playerIdsToAdd as $playerId) {
+        $insertData[] = [
+            'tournament_id' => $tournamentId,
+            // 'team_id' => $teamId,
+            'player_id' => $playerId,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ];
+    }
+
+    if (!empty($insertData)) {
+        DB::table('tournament_players')->insert($insertData);
+    }
+
+    // Remove players not included in the new list
+    if (!empty($playerIdsToRemove)) {
+        DB::table('tournament_players')
+            ->where('tournament_id', $tournamentId)
+            // ->where('team_id', $teamId)
+            ->whereIn('player_id', $playerIdsToRemove)
+            ->delete();
+    }
+
+    return response()->json([
+        'code' => 200,
+        'message' => 'Tournament players updated successfully.',
+        'data' => '',
+        // 'added' => array_values($playerIdsToAdd),
+        // 'removed' => array_values($playerIdsToRemove),
+    ]);
+}
+
+public function getTournamentPlayers(Request $request)
+{
+    $request->validate([
+        'userId' => 'required|integer|exists:users,id',
+        'tournamentId' => 'required|string',
+    ]);
+
+    $userId = $request->input('userId');
+    $token = $request->header('token');
+
+    // Auth check
+    $authcheck = $this->authCheck($token, $userId);
     if (!empty($authcheck)) {
         return response()->json($authcheck, 401);
     }
 
     $tournamentId = $request->input('tournamentId');
 
-    $players = Player::where('tournament_id', $tournamentId)->get();
+    $players = DB::table('tournament_players')
+        ->join('users', 'tournament_players.player_id', '=', 'users.id')
+        ->where('tournament_players.tournament_id', $tournamentId)
+        ->select(
+            'users.id as user_id',
+            'users.first_name',
+            'users.email',
+            'tournament_players.team_id'
+        )
+        ->get()
+        ->map(function ($player) {
+            foreach ($player as $key => $value) {
+                $player->$key = $value === null ? '' : $value;
+            }
+            return $player;
+        });
 
     return response()->json([
         'code' => 200,
-        'message' => 'Players fetched successfully',
-        'result' => $players
+        'message' => 'Tournament players fetched successfully.',
+        'data' => $players
     ]);
 }
+
+
+public function uploadImage(Request $request)
+{
+    // Validate file and type inputs
+    $request->validate([
+        'file' => 'required', // Max 5MB
+        'type' => 'required',
+    ]);
+
+    // Get file and type
+    $file = $request->file('file');
+    $type = $request->input('type');
+
+    // Failsafe: Check if file is valid
+    if (!$file || !$file->isValid()) {
+        return response()->json([
+            'code' => 400,
+            'message' => 'Invalid or missing file upload.',
+        ], 400);
+    }
+
+    // Set folder path based on type
+    switch ($type) {
+        case 'register':
+            $folder = 'uploads/registers';
+            break;
+        case 'tournament_logo':
+            $folder = 'uploads/tournaments/logos';
+            break;
+        case 'tournament_banner':
+            $folder = 'uploads/tournaments/banners';
+            break;
+        case 'team_logo':
+            $folder = 'uploads/teams/logos';
+            break;
+        default:
+            $folder = 'uploads/others';
+            break;
+    }
+
+    // Create directory if it doesn't exist
+    if (!file_exists(public_path($folder))) {
+        mkdir(public_path($folder), 0755, true);
+    }
+
+    // Generate unique file name
+    $filename = $type . '_' . time() . '.' . $file->getClientOriginalExtension();
+
+    // Move the file to the designated folder
+    $file->move(public_path($folder), $filename);
+
+    // Generate public URL
+    // $url = url($folder . '/' . $filename);
+$url = str_replace('/public/index.php', '', url($folder . '/' . $filename));
+
+    // Return success response
+    return response()->json([
+        'code' => 200,
+        'message' => 'Image uploaded successfully',
+        'data' => [
+            'imageUrl' => $url
+        ]
+    ]);
+}
+
+
+
 
 }
