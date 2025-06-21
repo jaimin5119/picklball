@@ -376,29 +376,48 @@ public function teamList(Request $request)
     $user_id = $request->userId;
     $token = $request->header('token');
 
-
-    // Auth check (your existing method)
+    // Auth check
     $authcheck = $this->authCheck($token, $user_id);
     if (!empty($authcheck)) {
         return response()->json($authcheck, 401);
     }
 
     $perPage = 10;
-    $page = $request->input('page');
+    $page = $request->input('page', 1);
+    $search = $request->input('search'); // team name search
+    $isUserTeamList = filter_var($request->input('isUserTeamList'), FILTER_VALIDATE_BOOLEAN); // cast to boolean
 
-    // Get total number of teams
-    $totalRecords = DB::table('teams')->count();
+    // Base query
+    $teamQuery = DB::table('teams')->select('id', 'teamName', 'teamLogo', 'adminId');
 
-    // Get paginated teams
-    $teams = DB::table('teams')
-        ->select('id', 'teamName', 'teamLogo', 'adminId')
-        ->offset(($page - 1) * $perPage)
+    // Search by team name
+    if (!empty($search)) {
+        $teamQuery->where('teamName', 'like', '%' . $search . '%');
+    }
+
+    // Filter only user teams if isUserTeamList is true
+    if ($isUserTeamList) {
+        $teamQuery->where(function ($q) use ($user_id) {
+            $q->where('adminId', $user_id)
+              ->orWhereIn('id', function ($sub) use ($user_id) {
+                  $sub->select('team_id')
+                      ->from('team_players')
+                      ->where('userId', $user_id);
+              });
+        });
+    }
+
+    // Count total
+    $totalRecords = $teamQuery->count();
+
+    // Paginate
+    $teams = $teamQuery->offset(($page - 1) * $perPage)
         ->limit($perPage)
         ->get();
 
     $teamIds = $teams->pluck('id')->toArray();
 
-    // Get players of these teams
+    // Get players
     $players = DB::table('team_players')
         ->join('users', 'team_players.userId', '=', 'users.id')
         ->whereIn('team_players.team_id', $teamIds)
@@ -410,10 +429,9 @@ public function teamList(Request $request)
         )
         ->get();
 
-    // Group players by team_id
     $playersGrouped = $players->groupBy('team_id');
 
-    // Attach players to teams
+    // Format teams with players
     $teamsNested = $teams->map(function ($team) use ($playersGrouped) {
         return [
             'teamId' => $team->id,
@@ -440,6 +458,7 @@ public function teamList(Request $request)
         'data' => $teamsNested,
     ]);
 }
+
 
 public function teamDetails(Request $request)
 {
@@ -1185,12 +1204,10 @@ public function getMatchStatus(Request $request)
         ]
     ]);
 }
-
 public function getTournamentsByType(Request $request)
 {
-    // Auth parameters from POST body and headers
-    $user_id = $request->input('userId');  // userId from POST body
-    $token = $request->header('token');    // token from header
+    $user_id = $request->input('userId');
+    $token = $request->header('token');
 
     // Auth check
     $authcheck = $this->authCheck($token, $user_id);
@@ -1198,13 +1215,11 @@ public function getTournamentsByType(Request $request)
         return response()->json($authcheck, 401);
     }
 
-    // Get filter parameters from POST body
     $type = $request->input('type');           // 'ongoing', 'completed', 'upcoming'
-    $limit = $request->input('limit', 10);     // default 10
-    $page = $request->input('page', 1);        // default 1
+    $limit = $request->input('limit', 10);
+    $page = $request->input('page', 1);
 
     $query = Tournament::query();
-    // dd($query);
 
     if ($type === 'ongoing') {
         $query->where('start_date', '<=', now())
@@ -1216,18 +1231,21 @@ public function getTournamentsByType(Request $request)
     }
 
     $totalItems = $query->count();
+
     $tournaments = $query->skip(($page - 1) * $limit)
                          ->take($limit)
-                         ->get();
+                         ->get()
+                         ->map(function ($item) {
+                             return collect($item)->mapWithKeys(function ($value, $key) {
+                                 return [$key => (string) $value];
+                             });
+                         });
 
     return response()->json([
         'code' => 200,
         'message' => 'Tournaments fetched successfully',
-            // 'currentPage' => (int)$page,
-            // 'limit' => (int)$limit,
-            'totalPages' => ceil($totalItems / $limit),
-            'totalItems' => $totalItems,
-        
+        'totalPages' => ceil($totalItems / $limit),
+        'totalItems' => $totalItems,
         'data' => $tournaments
     ]);
 }
@@ -1243,19 +1261,61 @@ public function getTournamentTeams(Request $request)
     }
 
     $tournamentId = $request->input('tournamentId');
+    $limit = $request->input('limit', 10);
+    $page = $request->input('page', 1);
 
-    $teams = DB::table('teams')
+    // Step 1: Base query for total count
+    $baseQuery = DB::table('teams')
         ->join('tournament_teams', 'teams.id', '=', 'tournament_teams.team_id')
-        ->where('tournament_teams.tournament_id', $tournamentId)
-        ->select('teams.*')
+        ->where('tournament_teams.tournament_id', $tournamentId);
+
+    $totalItems = $baseQuery->count();
+    $totalPages = ceil($totalItems / $limit);
+
+    // Step 2: Get paginated teams
+    $teams = $baseQuery->select('teams.*')
+        ->skip(($page - 1) * $limit)
+        ->take($limit)
         ->get();
+
+    // Step 3: Attach players and convert to string
+    foreach ($teams as $team) {
+        $playerIds = DB::table('tournament_players')
+            ->where('tournament_id', $tournamentId)
+            ->where('team_id', $team->id) // Optional: filter by team if applicable
+            ->pluck('player_id');
+
+        $players = DB::table('users')
+            ->whereIn('id', $playerIds)
+            ->select('id', 'first_name', 'email', 'image')
+            ->get();
+
+        // Convert player values to string
+        $team->players = $players->map(function ($player) {
+            return collect($player)->mapWithKeys(function ($val, $key) {
+                return [$key => (string) $val];
+            });
+        });
+
+        // Convert team values to string (except 'players')
+        foreach ($team as $key => $value) {
+            if ($key !== 'players') {
+                $team->$key = (string) $value;
+            }
+        }
+    }
 
     return response()->json([
         'code' => 200,
-        'message' => 'Teams fetched successfully',
+        'message' => 'Teams with players fetched successfully',
+        'totalPages' => $totalPages,
+        'totalItems' => $totalItems,
+        
         'data' => $teams
     ]);
 }
+
+
 public function addTournamentTeams(Request $request)
 {
     $request->validate([
@@ -1310,26 +1370,34 @@ public function addTournamentTeams(Request $request)
             ->delete();
     }
 
+    // 🟡 Count total teams after update
+    $totalTeams = DB::table('tournament_teams')
+        ->where('tournament_id', $tournamentId)
+        ->count();
+
+    // 🟢 Update tournaments table
+    DB::table('tournaments')
+        ->where('tournament_id', $tournamentId)
+        ->update(['no_of_teams' => $totalTeams]);
+
     return response()->json([
         'code' => 200,
         'message' => 'Tournament teams updated successfully.',
-        'data'=>'',
-        // 'added' => array_values($teamIdsToAdd),
-        // 'removed' => array_values($teamIdsToRemove),
+        'data' => [
+            'no_of_teams' => (string) $totalTeams // send as string if needed
+        ]
     ]);
 }
 
 
 public function addTournamentPlayers(Request $request)
 {
-    $request->validate([
+  $request->validate([
         'userId' => 'required|integer|exists:users,id',
         'tournamentId' => 'required|string',
-        // 'teamId' => 'required|integer|exists:teams,id',
         'playerIds' => 'required|array|min:1',
         'playerIds.*' => 'required',
     ]);
-    // dd('dssfdf');
 
     $userId = $request->input('userId');
     $token = $request->header('token');
@@ -1341,13 +1409,11 @@ public function addTournamentPlayers(Request $request)
     }
 
     $tournamentId = $request->input('tournamentId');
-    $teamId = $request->input('teamId');
     $playerIds = $request->input('playerIds');
 
-    // Get existing player IDs already added
+    // Get existing player IDs
     $existingPlayerIds = DB::table('tournament_players')
         ->where('tournament_id', $tournamentId)
-        // ->where('team_id', $teamId)
         ->pluck('player_id')
         ->toArray();
 
@@ -1360,7 +1426,6 @@ public function addTournamentPlayers(Request $request)
     foreach ($playerIdsToAdd as $playerId) {
         $insertData[] = [
             'tournament_id' => $tournamentId,
-            // 'team_id' => $teamId,
             'player_id' => $playerId,
             'created_at' => now(),
             'updated_at' => now(),
@@ -1375,19 +1440,33 @@ public function addTournamentPlayers(Request $request)
     if (!empty($playerIdsToRemove)) {
         DB::table('tournament_players')
             ->where('tournament_id', $tournamentId)
-            // ->where('team_id', $teamId)
             ->whereIn('player_id', $playerIdsToRemove)
             ->delete();
     }
 
+    // ✅ Count total players after update
+    $totalPlayers = DB::table('tournament_players')
+        ->where('tournament_id', $tournamentId)
+        ->count();
+
+    // ✅ Update the tournament's no_of_player field
+    DB::table('tournaments')
+        ->where('tournament_id', $tournamentId)
+        ->update([
+            'no_of_player' => $totalPlayers
+        ]);
+
     return response()->json([
         'code' => 200,
         'message' => 'Tournament players updated successfully.',
-        'data' => '',
-        // 'added' => array_values($playerIdsToAdd),
-        // 'removed' => array_values($playerIdsToRemove),
+        'data' => [
+            'no_of_player' => (string) $totalPlayers
+        ]
     ]);
 }
+
+
+
 
 public function getTournamentPlayers(Request $request)
 {
