@@ -1575,7 +1575,106 @@ $url = str_replace('/public/index.php', '', url($folder . '/' . $filename));
     ]);
 }
 
+public function createMatchCustome(Request $request)
+    {
+        try {
+            $user_id = $request->userId;
+            $token = $request->header('token');
 
+            // Auth check
+            $authcheck = $this->authCheck($token, $user_id);
+            if (!empty($authcheck)) {
+                return response()->json($authcheck, 401);
+            }
+
+            // Validate outer structure
+            $request->validate([
+                'matchDetails' => 'required|array',
+                'matchDetails.matchStartDate' => 'required|date',
+                'matchDetails.matchStartTime' => 'required|date_format:H:i:s',
+                'matchDetails.matchType' => 'required|string',
+                'matchDetails.matchPointFormat' => 'required|string',
+                'matchDetails.matchLocation' => 'required|string',
+                'Team' => 'required|array|size:2',
+                'Player' => 'required|array|min:2'
+            ]);
+
+            $matchDetails = $request->matchDetails;
+            $teams = $request->Team;
+            $players = $request->Player;
+
+            $match_id = 'match_' . Str::random(8);
+
+            // Insert into matches table
+            DB::table('matches')->insert([
+                'match_id' => $match_id,
+                'match_type' => $matchDetails['matchType'],
+                'match_point_format' => $matchDetails['matchPointFormat'],
+                'match_location' => $matchDetails['matchLocation'],
+                'match_start_date' => Carbon::parse($matchDetails['matchStartDate'])->format('Y-m-d'),
+                'match_start_time' => $matchDetails['matchStartTime'],
+                'status' => 'Pending',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+
+            // If Singles match, use Player names as team names
+            if (strtolower($matchDetails['matchType']) === 'singles') {
+                foreach ([0, 1] as $i) {
+                    DB::table('match_teams')->insert([
+                        'match_id' => $match_id,
+                        'team_name' => 'Player ' . ($i + 1),
+                        'team_number' => $i + 1,
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ]);
+                }
+            } else {
+                // Doubles or team-based match
+                foreach ([0, 1] as $i) {
+                    DB::table('match_teams')->insert([
+                        'match_id' => $match_id,
+                        'team_name' => $teams[$i],
+                        'team_number' => $i + 1,
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ]);
+                }
+            }
+
+            // Insert players into match_players
+            foreach ($players as $index => $userId) {
+                DB::table('match_players')->insert([
+                    'match_id' => $match_id,
+                    'team_number' => $index < 2 ? 1 : 2,
+                    'user_id' => $userId,
+                    'created_at' => now(),
+                    'updated_at' => now()
+                ]);
+            }
+
+            return response()->json([
+                'code' => 200,
+                'message' => 'Match created successfully',
+                'result' => [
+                    'matchId' => $match_id
+                ]
+            ], 200);
+
+        } catch (ValidationException $ve) {
+            return response()->json([
+                'code' => 422,
+                'message' => 'Validation failed',
+                'data' => $ve->errors(),
+            ], 422);
+        } catch (\Exception $e) {
+            return response()->json([
+                'code' => 500,
+                'message' => 'Something went wrong',
+                'data' => $e->getMessage(),
+            ], 500);
+        }
+    }
 
 
 }
