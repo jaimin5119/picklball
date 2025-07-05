@@ -51,3 +51,12 @@ Route::post('/tournament/update-score', [ApiController::class, 'updateMatchScore
     Route::post('/tournaments', [ApiController::class, 'getTournamentsByType']);
     Route::post('/tournaments/teams', [ApiController::class, 'getTournamentTeams']);
     Route::post('/tournaments/players', [ApiController::class, 'getTournamentPlayers']);
+
+
+//    Route::post('/matchCustome/create', [ApiController::class, 'createMatchCustome']);
+    Route::post('/matchCustome/create', [ApiController::class, 'createMatchCustome']);
+    Route::post('/matchCustomes', [ApiController::class, 'getCustomMatchCustome']);
+    Route::post('/matchCustome/details', [ApiController::class, 'getMatchCustomeDetails']);
+
+    
+    Route::post('/matchCustome/update-score', [ApiController::class, 'updateMatchCustomeScore']);
