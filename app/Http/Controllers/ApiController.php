@@ -1574,107 +1574,323 @@ $url = str_replace('/public/index.php', '', url($folder . '/' . $filename));
         ]
     ]);
 }
-
 public function createMatchCustome(Request $request)
-    {
-        try {
-            $user_id = $request->userId;
-            $token = $request->header('token');
+{
+    try {
+        // Extract token and userId from request
+        $userId = $request->input('userId');
+        $token = $request->header('token');
 
-            // Auth check
-            $authcheck = $this->authCheck($token, $user_id);
-            if (!empty($authcheck)) {
-                return response()->json($authcheck, 401);
-            }
+        // Auth check
+        $authcheck = $this->authCheck($token, $userId);
+        if (!empty($authcheck)) {
+            return response()->json($authcheck, 401);
+        }
 
-            // Validate outer structure
-            $request->validate([
-                'matchDetails' => 'required|array',
-                'matchDetails.matchStartDate' => 'required|date',
-                'matchDetails.matchStartTime' => 'required|date_format:H:i:s',
-                'matchDetails.matchType' => 'required|string',
-                'matchDetails.matchPointFormat' => 'required|string',
-                'matchDetails.matchLocation' => 'required|string',
-                'Team' => 'required|array|size:2',
-                'Player' => 'required|array|min:2'
-            ]);
+        // If auth passes, get user model
+        $user = User::find($userId); // replace with actual user fetching logic if needed
 
-            $matchDetails = $request->matchDetails;
-            $teams = $request->Team;
-            $players = $request->Player;
+        // Validation
+        $request->validate([
+            'matchDetails' => 'required|array',
+            'matchDetails.matchStartDate' => 'required|date',
+            'matchDetails.matchStartTime' => 'required|date_format:H:i:s',
+            'matchDetails.matchType' => 'required|string',
+            'matchDetails.matchPointFormat' => 'required|string',
+            'matchDetails.matchLocation' => 'required|string',
+            'Team' => 'required|array|size:2',
+            'Player' => 'required|array|min:2'
+        ]);
 
-            $match_id = 'match_' . Str::random(8);
+        $matchDetails = $request->matchDetails;
+        $teams = $request->Team;
+        $players = $request->Player;
 
-            // Insert into matches table
-            DB::table('matches')->insert([
+        $match_id = 'match_' . Str::random(8);
+
+        // Insert match
+        DB::table('matches')->insert([
+            'match_id' => $match_id,
+            'match_type' => $matchDetails['matchType'],
+            'match_point_format' => $matchDetails['matchPointFormat'],
+            'match_location' => $matchDetails['matchLocation'],
+            'match_start_date' => $matchDetails['matchStartDate'],
+            'match_start_time' => $matchDetails['matchStartTime'],
+            'status' => 'Pending',
+            'organizer_id' => $user->id,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        // Insert teams
+        foreach ([0, 1] as $i) {
+            DB::table('match_teams')->insert([
                 'match_id' => $match_id,
-                'match_type' => $matchDetails['matchType'],
-                'match_point_format' => $matchDetails['matchPointFormat'],
-                'match_location' => $matchDetails['matchLocation'],
-                'match_start_date' => Carbon::parse($matchDetails['matchStartDate'])->format('Y-m-d'),
-                'match_start_time' => $matchDetails['matchStartTime'],
-                'status' => 'Pending',
+                'team_name' => $teams[$i],
+                'team_number' => $i + 1,
                 'created_at' => now(),
                 'updated_at' => now(),
             ]);
-
-            // If Singles match, use Player names as team names
-            if (strtolower($matchDetails['matchType']) === 'singles') {
-                foreach ([0, 1] as $i) {
-                    DB::table('match_teams')->insert([
-                        'match_id' => $match_id,
-                        'team_name' => 'Player ' . ($i + 1),
-                        'team_number' => $i + 1,
-                        'created_at' => now(),
-                        'updated_at' => now(),
-                    ]);
-                }
-            } else {
-                // Doubles or team-based match
-                foreach ([0, 1] as $i) {
-                    DB::table('match_teams')->insert([
-                        'match_id' => $match_id,
-                        'team_name' => $teams[$i],
-                        'team_number' => $i + 1,
-                        'created_at' => now(),
-                        'updated_at' => now(),
-                    ]);
-                }
-            }
-
-            // Insert players into match_players
-            foreach ($players as $index => $userId) {
-                DB::table('match_players')->insert([
-                    'match_id' => $match_id,
-                    'team_number' => $index < 2 ? 1 : 2,
-                    'user_id' => $userId,
-                    'created_at' => now(),
-                    'updated_at' => now()
-                ]);
-            }
-
-            return response()->json([
-                'code' => 200,
-                'message' => 'Match created successfully',
-                'result' => [
-                    'matchId' => $match_id
-                ]
-            ], 200);
-
-        } catch (ValidationException $ve) {
-            return response()->json([
-                'code' => 422,
-                'message' => 'Validation failed',
-                'data' => $ve->errors(),
-            ], 422);
-        } catch (\Exception $e) {
-            return response()->json([
-                'code' => 500,
-                'message' => 'Something went wrong',
-                'data' => $e->getMessage(),
-            ], 500);
         }
+
+        // Insert players
+        foreach ($players as $index => $userId) {
+            DB::table('match_players')->insert([
+                'match_id' => $match_id,
+                'team_number' => $index < 2 ? 1 : 2,
+                'user_id' => $userId,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        }
+
+        return response()->json([
+            'code' => 200,
+            'message' => 'Match created successfully',
+            'data' => ['matchId' => $match_id]
+        ]);
+
+    } catch (ValidationException $ve) {
+        return response()->json([
+            'code' => 422,
+            'message' => 'Validation failed',
+            'data' => $ve->errors()
+        ], 422);
+    } catch (\Exception $e) {
+        return response()->json([
+            'code' => 500,
+            'message' => 'Something went wrong',
+            'data' => $e->getMessage()
+        ], 500);
     }
+}
+
+
+public function getCustomMatchCustome(Request $request)
+{
+    try {
+        // Extract token and userId
+        $userId = $request->input('userId');
+        $token = $request->header('token');
+
+        // Auth check
+        $authcheck = $this->authCheck($token, $userId);
+        if (!empty($authcheck)) {
+            return response()->json($authcheck, 401);
+        }
+
+        // Validate input
+        $request->validate([
+            'type' => 'nullable|string|in:completed,pending,cancelled',
+            'page' => 'nullable|integer|min:1',
+            'limit' => 'nullable|integer|min:1|max:100',
+        ]);
+
+        $type = $request->input('type', 'completed');
+        $page = $request->input('page');
+        $limit = $request->input('limit', 10);
+
+        // Fetch matches with filters
+        $query = DB::table('matches')
+            ->where('status', $type)
+            ->orderBy('match_start_date', 'desc');
+
+        $total = $query->count();
+        $matches = $query->offset(($page - 1) * $limit)->limit($limit)->get();
+
+        $result = [];
+
+        foreach ($matches as $match) {
+            $playerCount = DB::table('match_players')
+                ->where('match_id', $match->match_id)
+                ->count();
+
+            $organizer = DB::table('users')
+                ->where('id', $match->organizer_id)
+                ->first();
+
+            $result[] = [
+                'matchId' => $match->match_id,
+                'matchTitle' => ucfirst($match->match_type) . ' Match',
+                'matchType' => strtolower($match->match_type),
+                'startDate' => Carbon::parse($match->match_start_date . ' ' . $match->match_start_time)->toIso8601String(),
+                'endDate' => Carbon::parse($match->match_start_date . ' ' . $match->match_start_time)->addHours(2)->toIso8601String(),
+                'location' => $match->match_location,
+                'status' => $match->status,
+                'numberOfPlayers' => $playerCount,
+                'organizer' => [
+                    'name' => $organizer->name ?? 'Unknown',
+                    'phone' => $organizer->phone ?? '',
+                    'profileLogo' => $organizer->profile_image ?? '',
+                ],
+            ];
+        }
+
+        return response()->json([
+            'code' => 200,
+            'message' => 'Custom matches fetched successfully',
+            // 'pagination' => [
+                // 'currentPage' => (int) $page,
+                // 'limit' => (int) $limit,
+                'totalPages' => ceil($total / $limit),
+                'totalItems' => $total,
+            // ],
+            'data' => $result
+        ]);
+
+    } catch (\Illuminate\Validation\ValidationException $ve) {
+        return response()->json([
+            'code' => 422,
+            'message' => 'Validation error',
+            'errors' => $ve->errors(),
+        ], 422);
+    } catch (\Exception $e) {
+        return response()->json([
+            'code' => 500,
+            'message' => 'Something went wrong',
+            'error' => $e->getMessage(),
+        ], 500);
+    }
+}
+
+public function getMatchCustomeDetails(Request $request)
+{
+    try {
+        // Extract token and userId
+        $userId = $request->input('userId');
+        $token = $request->header('token');
+
+        // Auth check
+        $authcheck = $this->authCheck($token, $userId);
+        if (!empty($authcheck)) {
+            return response()->json($authcheck, 401);
+        }
+
+        // Match ID from query
+        $matchId = $request->query('matchId');
+
+        // Fetch match
+        $match = DB::table('matches')->where('match_id', $matchId)->first();
+        if (!$match) {
+            return response()->json([
+                'code' => 404,
+                'message' => 'Match not found',
+            ], 404);
+        }
+
+        // Basic match details
+        $matchDetails = [
+            'matchStartDate' => $match->match_start_date,
+            'matchStartTime' => $match->match_start_time,
+            'matchType' => $match->match_type,
+            'matchPointFormat' => $match->match_point_format,
+            'matchLocation' => $match->match_location,
+        ];
+
+        // Team 1 players
+        $team1Players = DB::table('match_players')
+            ->join('users', 'match_players.user_id', '=', 'users.id')
+            ->where('match_players.match_id', $matchId)
+            ->where('team_number', 1)
+            ->select('users.id as userId', 'users.name', 'users.phone as phoneNumber', 'users.profile_image as profileLogo')
+            ->get();
+
+        // Team 2 players
+        $team2Players = DB::table('match_players')
+            ->join('users', 'match_players.user_id', '=', 'users.id')
+            ->where('match_players.match_id', $matchId)
+            ->where('team_number', 2)
+            ->select('users.id as userId', 'users.name', 'users.phone as phoneNumber', 'users.profile_image as profileLogo')
+            ->get();
+
+        return response()->json([
+            'code' => 200,
+            'message' => 'Match details fetched successfully',
+            'result' => [
+                'matchId' => $match->match_id,
+                'matchDetails' => $matchDetails,
+                'team1' => $team1Players,
+                'team2' => $team2Players,
+            ]
+        ]);
+    } catch (\Exception $e) {
+        return response()->json([
+            'code' => 500,
+            'message' => 'Something went wrong',
+            'error' => $e->getMessage(),
+        ], 500);
+    }
+}
+public function updateMatchCustomeScore(Request $request)
+{
+    try {
+        // Step 1: Auth check
+        $userId = $request->input('userId');
+        $token = $request->header('token');
+
+        $authcheck = $this->authCheck($token, $userId);
+        if (!empty($authcheck)) {
+            return response()->json($authcheck, 401);
+        }
+
+        // Step 2: Validate input
+        $request->validate([
+            'matchId' => 'required|string',
+            'team1Score' => 'required|integer',
+            'team2Score' => 'required|integer',
+            'playerScores' => 'required|array',
+            'playerScores.team1' => 'required|array',
+            'playerScores.team2' => 'required|array',
+        ]);
+
+        $matchId = $request->matchId;
+
+        // Step 3: Update team scores and status
+        DB::table('matches')->where('match_id', $matchId)->update([
+            'team1_score' => $request->team1Score,
+            'team2_score' => $request->team2Score,
+            'status' => 'completed',
+            'updated_at' => now()
+        ]);
+
+        // Step 4: Update player scores for team 1
+        foreach ($request->playerScores['team1'] as $player) {
+            DB::table('match_players')
+                ->where('match_id', $matchId)
+                ->where('user_id', $player['userId'])
+                ->update(['score' => $player['score']]);
+        }
+
+        // Step 5: Update player scores for team 2
+        foreach ($request->playerScores['team2'] as $player) {
+            DB::table('match_players')
+                ->where('match_id', $matchId)
+                ->where('user_id', $player['userId'])
+                ->update(['score' => $player['score']]);
+        }
+
+        // Step 6: Return response
+        return response()->json([
+            'code' => 200,
+            'message' => 'Match score updated successfully',
+            'result' => (object)[]
+        ]);
+    } catch (\Illuminate\Validation\ValidationException $ve) {
+        return response()->json([
+            'code' => 422,
+            'message' => 'Validation failed',
+            'errors' => $ve->errors()
+        ], 422);
+    } catch (\Exception $e) {
+        return response()->json([
+            'code' => 500,
+            'message' => 'Something went wrong',
+            'error' => $e->getMessage()
+        ], 500);
+    }
+}
+
+
 
 
 }
