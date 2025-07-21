@@ -231,34 +231,33 @@ class AdminController extends Controller
     }
 
     public function adminupdatePage(Request $request){
-        $validator = Validator::make($request->all(), [
-            // 'page_title' => 'required',
-            // 'page_content' => 'required',
-        ]);
+    $validator = Validator::make($request->all(), [
+        'f_name' => 'required|string|max:255',
+        'l_name' => 'required|string|max:255',
+        'email' => 'required|email|max:255',
+    ]);
 
-        if ($validator->fails()) {
-            // return $validator->errors();
-            return back()->withErrors($validator->errors());
-        }
-        $updatedData = [
-            'f_name' => $request->f_name,
-            'l_name' => $request->l_name,
-            'email' => $request->email,
-        ];
-        $id = $request->xid;
-        $update_qry =  DB::table('admins')
-        ->where('id', $id)
-        // ->update($updatedData);
-        ->update([
-            'f_name' => $request->f_name,
-            'l_name' => $request->l_name,
-            'email' => $request->email,
-        ]);
-        if($update_qry){
-            return back()->with(['success' => 'admin updated successfully.']);
-        }
-        else{
-            return back()->withErrors('Error in updating CMS Page.');
-        }
+    if ($validator->fails()) {
+        return back()->withErrors($validator->errors())->withInput();
     }
+
+    $id = $request->xid;
+
+    if (!$id) {
+        return back()->withErrors('Invalid ID.');
+    }
+
+    $updated = DB::table('admins')
+    ->where('id', $id)
+    ->update([
+        'f_name' => $request->f_name,
+        'l_name' => $request->l_name,
+        'email' => $request->email,
+    ]);
+
+// Always show success, even if nothing changed
+return back()->with(['success' => 'Admin updated successfully.']);
+
+}
+
 }

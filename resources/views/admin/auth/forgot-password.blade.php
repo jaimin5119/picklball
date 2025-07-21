@@ -36,7 +36,7 @@
         body {
             height: 100%;
             /*background-repeat: no-repeat;*/
-            background-image: url("{{asset("img/background.jpg")}}");
+            background-color: #000;
         }
 
     </style>
@@ -116,7 +116,7 @@
     <div class="container-fluid">
         <div class="row">
             <div class="col-sm-6">
-                <p>Dynamic Website &copy; 2021</p>
+                <p>Pickle Heroes © 2025</p>
             </div>
             <div class="col-sm-6 text-right">
                 {{--                <p>Design by <a href="https://probsoltechnology.com" class="external">ProbSol Technology</a></p>--}}

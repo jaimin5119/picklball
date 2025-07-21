@@ -36,7 +36,8 @@
         body, html {
             height: 100%;
             background-repeat: no-repeat;
-            background-image: linear-gradient(rgb(104, 145, 162), rgb(12, 97, 33));
+            /* background-image: linear-gradient(rgb(104, 145, 162), rgb(12, 97, 33)); */
+            background-color: #000;
         }
 
     </style>
@@ -103,7 +104,7 @@
 
                                     <div class="row mt-4 pull-right">
                                         <div class="col-sm-12 ">
-                                            <button class="btn btn-primary mr-2" type="submit" name="action">
+                                            <button class="btn btn-success mr-2" type="submit" name="action">
                                                 <i class="fa fa-login"></i>
                                                 {{ __('Update') }}
                                             </button>
@@ -146,10 +147,10 @@
     <div class="container-fluid">
         <div class="row">
             <div class="col-sm-6">
-                <p>Dynamic Website &copy; 2021</p>
+                <p>Pickle Heroes © 2025</p>
             </div>
             <div class="col-sm-6 text-right">
-                <p>Design by <a href="https://probsoltechnology.com" class="external">ProbSol Technology</a></p>
+                <!-- <p>Design by <a href="https://probsoltechnology.com" class="external">ProbSol Technology</a></p> -->
             </div>
         </div>
     </div>

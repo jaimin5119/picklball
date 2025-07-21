@@ -60,24 +60,58 @@ class ApiController extends Controller
         ]
     ]);
 }
-
-
-    public function verifyOtp(Request $request)
+public function verifyOtp(Request $request)
 {
     $request->validate([
         'phone' => 'required|string',
         'otp' => 'required|string',
     ]);
 
-    $cachedOtp = Cache::get('otp_' . $request->phone);
-
-    if ($cachedOtp != $request->otp) {
-        return response()->json(['code' => 400, 'message' => 'Invalid OTP', 'data' => (object)[]]);
-    }
-
     $user = User::where('mobile', $request->phone)->first();
     $isNewUser = false;
 
+    $cachedOtp = Cache::get('otp_' . $request->phone);
+
+    // If OTP is invalid
+    if ($cachedOtp != $request->otp) {
+        // Check if user exists to return data
+        if ($user) {
+            return response()->json([
+                'code' => 400,
+                'message' => 'Invalid OTP',
+                'data' => [
+                    'isNewUser' => false,
+                    'userId' => $user->id,
+                    'first_name' => $user->first_name,
+                    'last_name' => $user->last_name,
+                    'email' => $user->email,
+                    'mobile' => $user->mobile,
+                    'image' => $user->image,
+                    'path' => $user->path,
+                    'token' => $user->device_token,
+                    'is_active' => $user->is_active,
+                    'created_at' => $user->created_at,
+                    'updated_at' => $user->updated_at,
+                    'mobile_verified' => $user->mobile_verified,
+                    'email_verified' => $user->email_verified,
+                    'gender' => $user->gender,
+                    'location' => $user->location,
+                    'dob' => $user->dob,
+                ]
+            ]);
+        }
+
+        // If no user exists
+        return response()->json([
+            'code' => 400,
+            'message' => 'Invalid OTP',
+            'data' => [
+                'isNewUser' => true
+            ]
+        ]);
+    }
+
+    // OTP is valid
     if (!$user) {
         $user = User::create([
             'mobile' => $request->phone,
@@ -89,22 +123,90 @@ class ApiController extends Controller
 
     $accessToken = Str::random(64);
 
-    // Store or update token
     UserAuthToken::updateOrCreate(
         ['user_id' => $user->id],
         ['token' => $accessToken]
     );
 
-    return response()->json([
+    $response = [
         'code' => 200,
         'message' => 'OTP verified successfully',
         'data' => [
-            'userId'=>$user->id,
+            'isNewUser' => $isNewUser,
             'token' => $accessToken,
-            'isNewUser' => $isNewUser
         ]
-    ]);
+    ];
+
+    // Only include user details if it's NOT a new user
+    if (!$isNewUser) {
+        $response['data'] += [
+            'userId' => $user->id,
+            'first_name' => $user->first_name,
+            'last_name' => $user->last_name,
+            'email' => $user->email,
+            'mobile' => $user->mobile,
+            'image' => $user->image,
+            'path' => $user->path,
+            'token' => $user->device_token,
+            'is_active' => $user->is_active,
+            'created_at' => $user->created_at,
+            'updated_at' => $user->updated_at,
+            'mobile_verified' => $user->mobile_verified,
+            'email_verified' => $user->email_verified,
+            'gender' => $user->gender,
+            'location' => $user->location,
+            'dob' => $user->dob,
+        ];
+    }
+
+    return response()->json($response);
 }
+
+
+
+//     public function verifyOtp(Request $request)
+// {
+//     $request->validate([
+//         'phone' => 'required|string',
+//         'otp' => 'required|string',
+//     ]);
+
+//     $cachedOtp = Cache::get('otp_' . $request->phone);
+
+//     if ($cachedOtp != $request->otp) {
+//         return response()->json(['code' => 400, 'message' => 'Invalid OTP', 'data' => (object)[]]);
+//     }
+
+//     $user = User::where('mobile', $request->phone)->first();
+//     $isNewUser = false;
+
+//     if (!$user) {
+//         $user = User::create([
+//             'mobile' => $request->phone,
+//             'is_active' => 1,
+//             'mobile_verified' => 1,
+//         ]);
+//         $isNewUser = true;
+//     }
+
+//     $accessToken = Str::random(64);
+
+//     // Store or update token
+//     UserAuthToken::updateOrCreate(
+//         ['user_id' => $user->id],
+//         ['token' => $accessToken]
+//     );
+
+//     return response()->json([
+//         'code' => 200,
+//         'message' => 'OTP verified successfully',
+//         'data' => [
+//             'userId'=>$user->id,
+//             'token' => $accessToken,
+//             'isNewUser' => $isNewUser
+//         ]
+//     ]);
+// }
 
 
    public function resendOtp(Request $request)
@@ -900,7 +1002,7 @@ public function getTournamentMatches(Request $request)
         }
 
         // Fetch matches using JOIN to get team names and logos
-      $matches = DB::table('matches')
+   $matches = DB::table('matches')
     ->join('teams as team_a', 'matches.team_a_id', '=', 'team_a.id')
     ->join('teams as team_b', 'matches.team_b_id', '=', 'team_b.id')
     ->where('matches.tournament_id', $tournamentId)
@@ -1890,7 +1992,249 @@ public function updateMatchCustomeScore(Request $request)
     }
 }
 
+public function details(Request $request)
+{
+    $userId = $request->input('userId');
+    $token = $request->header('token');
+
+    $authcheck = $this->authCheck($token, $userId);
+    if (!empty($authcheck)) {
+        return response()->json($authcheck, 401);
+    }
+
+    $user = User::find($userId);
+    if (!$user) {
+        return response()->json(['code' => 404, 'message' => 'User not found'], 404);
+    }
+
+    return response()->json([
+        'code' => 200,
+        'message' => 'Profile details fetched successfully',
+        'data' => [
+            'userId' => (string)$user->id,
+            'fullName' => trim($user->first_name . ' ' . $user->last_name),
+            'email' => $user->email,
+            'mobileNumber' => $user->mobile,
+            'image' => $user->image,
+            'path' => $user->path,
+            'gender' => $user->gender,
+            'dob' => $user->dob,
+            'location' => $user->location,
+            'isActive' => (bool) $user->is_active,
+            'mobileVerified' => (bool) $user->mobile_verified,
+            'emailVerified' => (bool) $user->email_verified,
+            'deviceToken' => $user->device_token,
+             'pushNotifications' => (bool) $user->push_notifications,
+            'mailNotifications' => (bool) $user->mail_notifications,
+            'appSound' => (bool) $user->app_sound,
+            'appVibrations' => (bool) $user->app_vibrations,
+
+        ]
+    ]);
+}
+public function edit(Request $request)
+{
+    $userId = $request->input('userId');
+    $token = $request->header('token');
+
+    $authcheck = $this->authCheck($token, $userId);
+    if (!empty($authcheck)) {
+        return response()->json($authcheck, 401);
+    }
+
+    $user = User::find($userId);
+    if (!$user) {
+        return response()->json(['code' => 404, 'message' => 'User not found'], 404);
+    }
+
+    // Validate fields
+    $request->validate([
+        'first_name' => 'nullable|string|max:255',
+        'last_name' => 'nullable|string|max:255',
+        'mobile' => 'nullable|numeric',
+        'gender' => 'nullable|string',
+        'dob' => 'nullable|date',
+        'location' => 'nullable|string|max:255',
+        'image_url' => 'nullable|url',
+
+        // Notification fields (boolean)
+        'push_notifications' => 'nullable|boolean',
+        'mail_notifications' => 'nullable|boolean',
+        'app_sound' => 'nullable|boolean',
+        'app_vibrations' => 'nullable|boolean',
+    ]);
+
+    // Update basic fields
+    $user->first_name = $request->input('first_name', $user->first_name);
+    $user->last_name = $request->input('last_name', $user->last_name);
+    $user->mobile = $request->input('mobile', $user->mobile);
+    $user->gender = $request->input('gender', $user->gender);
+    $user->dob = $request->input('dob', $user->dob);
+    $user->location = $request->input('location', $user->location);
+    $user->image = $request->input('image_url', $user->image);
+
+    // Update notification preferences
+    $user->push_notifications = $request->input('push_notifications', $user->push_notifications);
+    $user->mail_notifications = $request->input('mail_notifications', $user->mail_notifications);
+    $user->app_sound = $request->input('app_sound', $user->app_sound);
+    $user->app_vibrations = $request->input('app_vibrations', $user->app_vibrations);
+
+    $user->save();
+
+    return response()->json([
+        'code' => 200,
+        'message' => 'Profile updated successfully',
+        'data' => [
+            'userId' => (string) $user->id,
+            'fullName' => $user->first_name . ' ' . $user->last_name,
+            'image' => $user->image,
+            'mobile' => $user->mobile,
+            'gender' => $user->gender,
+            'dob' => $user->dob,
+            'location' => $user->location,
+
+            // Return updated notification preferences
+            'pushNotifications' => (bool) $user->push_notifications,
+            'mailNotifications' => (bool) $user->mail_notifications,
+            'appSound' => (bool) $user->app_sound,
+            'appVibrations' => (bool) $user->app_vibrations,
+        ]
+    ]);
+}
 
 
+
+   public function logout(Request $request)
+{
+    $userId = $request->input('userId');
+    $token = $request->header('token');
+
+    // Step 1: Validate input
+    if (empty($userId) || empty($token)) {
+        return response()->json([
+            'code' => 400,
+            'status' => 'error',
+            'message' => 'Missing userId or token',
+        ]);
+    }
+
+    // Step 2: Check authentication
+    $authcheck = $this->authCheck($token, $userId);
+    if (!empty($authcheck)) {
+        return response()->json($authcheck, 401);
+    }
+
+    // Step 3: Set token to null instead of delete
+    $updated = UserAuthToken::where('user_id', $userId)
+                            ->where('token', $token)
+                            ->update(['token' => null]);
+
+    if ($updated) {
+        return response()->json([
+            'code' => 200,
+            'status' => 'success',
+            'message' => 'You have logged out successfully.',
+        ]);
+    } else {
+        return response()->json([
+            'code' => 404,
+            'status' => 'error',
+            'message' => 'No matching token found to logout.',
+        ]);
+    }
+}
+
+public function deleteAccount(Request $request)
+{
+    $userId = $request->input('userId');
+    $token = $request->header('token');
+
+    // Step 1: Check token + userId validity
+    $authCheck = $this->authCheck($token, $userId);
+    if (!empty($authCheck)) {
+        return response()->json($authCheck, 401);
+    }
+
+    // Step 2: Set is_active to 0 (soft delete)
+    $user = User::find($userId);
+
+    if (!$user) {
+        return response()->json([
+            'code' => 404,
+            'status' => 'error',
+            'message' => 'User not found.'
+        ]);
+    }
+
+    $user->is_active = 0;
+    $user->save();
+
+    return response()->json([
+        'code' => 200,
+        'status' => 'success',
+        'message' => 'Account deactivated successfully.'
+    ]);
+}
+
+public function getNotifications(Request $request)
+{
+    $userId = $request->input('userId');
+    $token = $request->header('token');
+
+    // ✅ Step 1: Validate token and userId
+    $authCheck = $this->authCheck($token, $userId);
+    if (!empty($authCheck)) {
+        return response()->json($authCheck, 401);
+    }
+
+    // ✅ Step 2: Fetch notifications
+    $notifications = Notifications::where(function ($query) use ($userId) {
+            $query->where('user_id', $userId)
+                  ->orWhereNull('user_id');
+                //   ->orWhere('target_audience', '0'); // All users
+        })
+        // ->where('status', '1') // Only sent
+        ->orderBy('created_at', 'desc')
+        ->get();
+
+    // ✅ Step 3: Return response
+    return response()->json([
+        'code' => 200,
+        'message' => 'Notifications fetched successfully',
+        'data' => $notifications
+    ]);
+}
+
+public function myStats(Request $request)
+{
+    $userId = $request->input('userId');
+    $token = $request->header('token');
+
+    // Optional: Auth check
+    $authcheck = $this->authCheck($token, $userId);
+    if (!empty($authcheck)) {
+        return response()->json($authcheck, 401);
+    }
+
+    // All values as strings
+    $stats = [
+        'total_matches_played' => '45',
+        'total_tournaments' => '9',
+        'matches_won' => '36',
+        'matches_lost' => '9',
+        'win_percentage' => '63.90%',
+        'single_win_rate' => '90.09%',
+        'double_win_rate' => '72.81%',
+        'most_frequent_partner' => 'John M.',
+        'tournaments_played' => '9',
+        'tournaments_won' => '9',
+    ];
+
+    return response()->json([
+        'code' => 200,
+        'message' => 'Stats fetched successfully',
+        'data' => $stats
+    ]);
+}
 
 }

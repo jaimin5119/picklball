@@ -1,3 +1,4 @@
+
 <?php
 
 use Illuminate\Http\Request;
@@ -60,3 +61,20 @@ Route::post('/tournament/update-score', [ApiController::class, 'updateMatchScore
 
     
     Route::post('/matchCustome/update-score', [ApiController::class, 'updateMatchCustomeScore']);
+
+        Route::post('/profile/details', [ApiController::class, 'details']);
+
+    // 2. Edit Profile Details
+    Route::post('/profile/edit', [ApiController::class, 'edit']);
+
+    // 3. Logout
+    Route::post('/logout', [ApiController::class, 'logout']);
+
+    // 4. Delete Account
+Route::post('/user/delete-account', [ApiController::class, 'deleteAccount']);
+Route::post('/notifications', [ApiController::class, 'getNotifications']);
+
+    // 5. Update Notification Settings
+    Route::put('/profile/notification', [ProfileController::class, 'updateNotification']);
+
+    Route::post('/my-stats', [ApiController::class, 'myStats']);

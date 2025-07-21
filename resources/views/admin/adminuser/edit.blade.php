@@ -73,11 +73,11 @@
                         <div class="row mt-4 pull-left">
                             <div class="col-sm-12 ">
                                 <button class="btn btn-primary mr-2" type="submit" >
-                                    <i class="fa fa-arrow-circle-up"></i>
+                                    
                                     {{ isset($edit) ? 'Update' : 'Add' }}
                                 </button>
                                 <button type="reset" class="btn btn-secondary  mb-1">
-                                    <i class="fa fa-arrow-circle-left"></i>
+                                    
                                     <a href="{{url()->previous()}}" class="text-white">Cancel</a>
                                 </button>
                             </div>

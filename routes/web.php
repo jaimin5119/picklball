@@ -9,26 +9,16 @@ use App\Http\Controllers\Admin\ContactUsController as AdminContactUsController;
 use App\Http\Controllers\Admin\NotificationController as AdminNotificationController;
 use App\Http\Controllers\Admin\UsersController as AdminUsersController;
 use App\Http\Controllers\FrontendController;
+use App\Http\Controllers\Admin\UserlistController; 
+use App\Http\Controllers\Admin\UserNotificationController;
+use App\Http\Controllers\Admin\TournamentController;
+use App\Http\Controllers\Admin\MatchController;
 
-/*
-|--------------------------------------------------------------------------
-| Web Routes
-|--------------------------------------------------------------------------
-|
-| Here is where you can register web routes for your application. These
-| routes are loaded by the RouteServiceProvider within a group which
-| contains the "web" middleware group. Now create something great!
-|
-*/
 
 // Route::get('/', [AdminController::class, 'login']);
 Route::get('/home', function () {
     return view('banner'); // this loads banner.blade.php
 });
-
-
-// Route::get('/', [FrontendController::class, 'privacyPolicy'])->name('home');
-// Route::get('/{slug}', [FrontendController::class, 'show'])->name('pages.show'); // Dynamic page route
 
 Route::get('/about-us', [FrontendController::class, 'about'])->name('about');
 Route::get('/contact-us', [FrontendController::class, 'contact'])->name('contact');
@@ -124,6 +114,46 @@ Route::group(['prefix' => 'admin', 'middleware' => 'admin'], function () {
     Route::get('/vistor-dash-page/{id}', [AdminUsersController::class, 'vistorDashPage'])->name('admin.vistor_dash_page');
     Route::get('/vistor-login-page/{id}', [AdminUsersController::class, 'vistorLoginPage'])->name('admin.vistor_login_page');
     Route::get('/vistor-reg-page/{id}', [AdminUsersController::class, 'vistorRegPage'])->name('admin.vistor_reg_page');
+
+
+    //user listing
+    Route::get('users', [UserlistController::class, 'index'])->name('admin.usersindex');
+    Route::get('/users/list', [UserlistController::class, 'getUsersList'])->name('admin.userslist');
+    Route::delete('/users/delete/{id}', [UserlistController::class, 'deleteUsersList'])->name('admin.usersdelete');
+    Route::post('/admin/user/toggle-status', [UserlistController::class, 'toggleStatus'])->name('admin.toggleUserStatus');
+
+
+
+    
+
+// Notification list page
+
+
+Route::get('/notifications/create', [UserNotificationController::class, 'create'])->name('admin.notificationscreate');
+Route::post('/notifications/store', [UserNotificationController::class, 'store'])->name('admin.notificationsstore');
+Route::get('/notifications', [UserNotificationController::class, 'index'])->name('admin.notificationsindex');
+Route::get('/notifications/scheduled', [UserNotificationController::class, 'getScheduledNotifications'])->name('admin.scheduled.notifications');
+Route::get('/scheduled-notification/edit/{id}', [UserNotificationController::class, 'edit'])->name('admin.schedulededit');
+Route::post('/notifications/update', [UserNotificationController::class, 'update'])->name('admin.notificationsupdate');
+Route::post('/admin/notification/scheduled/delete', [UserNotificationController::class, 'destroy'])->name('admin.scheduleddelete');
+
+
+    
+    // DataTable AJAX route
+    Route::get('admin/tournaments', function () {
+    return view('admin.tournaments.index');
+})->name('admin.tournaments.index');
+
+    Route::get('tournaments-list', [TournamentController::class, 'getTournamentsList'])->name('admin.tournamentslist');
+
+    // Delete Tournament
+    Route::post('tournaments/delete', [TournamentController::class, 'delete'])->name('admin.tournamentsdelete');
+
+
+
+    Route::get('/matches', [MatchController::class, 'index'])->name('admin.matches');;
+Route::get('/matches/list', [MatchController::class, 'getMatchesList'])->name('admin.matcheslist');
+Route::delete('/matches/{id}', [MatchController::class, 'destroy'])->name('admin.matchesdelete');
 
     
 });
